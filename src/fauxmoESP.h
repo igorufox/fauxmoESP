@@ -59,7 +59,7 @@ THE SOFTWARE.
 #if defined(ESP8266)
     #include <ESP8266WiFi.h>
     #include <ESPAsyncTCP.h>
-#elif defined(ESP32)
+#elif defined(ESP32) || defined(LIBRETINY)
     #include <WiFi.h>
     #include <AsyncTCP.h>
 #elif defined(ARDUINO_RASPBERRY_PI_PICO_W)
@@ -68,10 +68,18 @@ THE SOFTWARE.
 	#error Platform not supported
 #endif
 
-#include <WiFiUdp.h>
+#if defined(LIBRETINY)
+    #include "fauxmoUdp.h"
+#else
+    #include <WiFiUdp.h>
+#endif
 #include <functional>
 #include <vector>
-#include <MD5Builder.h>
+#if defined(LIBRETINY)
+    #include <MD5.h>
+#else
+    #include <MD5Builder.h>
+#endif
 #include "templates.h"
 
 typedef std::function<void(unsigned char, const char *, bool, unsigned char)> TSetStateCallback;
@@ -121,7 +129,11 @@ class fauxmoESP {
 		#ifdef ESP8266
         WiFiEventHandler _handler;
 		#endif
+#if defined(LIBRETINY)
+        FauxmoUdp _udp;
+#else
         WiFiUDP _udp;
+#endif
         AsyncClient * _tcpClients[FAUXMO_TCP_MAX_CLIENTS];
         TSetStateCallback _setStateCallback = NULL;
         TSetStateWithColorCallback _setStateWithColorCallback = NULL;
@@ -130,7 +142,11 @@ class fauxmoESP {
 
         void _handleUDP();
         void _onUDPData(const IPAddress remoteIP, unsigned int remotePort, void *data, size_t len);
+#if defined(LIBRETINY)
+        void _sendUDPResponse(const FauxmoUdp::Peer& peer);
+#else
         void _sendUDPResponse();
+#endif
 
         void _onTCPClient(AsyncClient *client);
         bool _onTCPData(AsyncClient *client, void *data, size_t len);

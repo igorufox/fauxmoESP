@@ -33,7 +33,11 @@ THE SOFTWARE.
 // UDP
 // -----------------------------------------------------------------------------
 
+#if defined(LIBRETINY)
+void fauxmoESP::_sendUDPResponse(const FauxmoUdp::Peer& peer) {
+#else
 void fauxmoESP::_sendUDPResponse() {
+#endif
 
 	DEBUG_MSG_FAUXMO("[FAUXMO] Responding to M-SEARCH request\n");
 
@@ -51,10 +55,13 @@ void fauxmoESP::_sendUDPResponse() {
         mac.c_str(), mac.c_str()
     );
 
-	#if DEBUG_FAUXMO_VERBOSE_UDP
+	#if DEBUG_FAUXMO_VERBOSE_UDP && !defined(LIBRETINY)
     	DEBUG_MSG_FAUXMO("[FAUXMO] UDP response sent to %s:%d\n%s", _udp.remoteIP().toString().c_str(), _udp.remotePort(), response);
 	#endif
 
+	#if defined(LIBRETINY)
+	    _udp.send(peer, response, strlen(response));
+	#else
     _udp.beginPacket(_udp.remoteIP(), _udp.remotePort());
 	#if defined(ESP32)
 	    _udp.printf(response);
@@ -62,9 +69,19 @@ void fauxmoESP::_sendUDPResponse() {
 	    _udp.write(response);
 	#endif
     _udp.endPacket();
+	#endif
 
 }
 
+#if defined(LIBRETINY)
+// the M-SEARCH match is done in the lwIP thread (fauxmoUdp.cpp), only the replies are left
+void fauxmoESP::_handleUDP() {
+    FauxmoUdp::Peer peer;
+    while (_udp.pop(peer)) {
+        _sendUDPResponse(peer);
+    }
+}
+#else
 void fauxmoESP::_handleUDP() {
 
 	int len = _udp.parsePacket();
@@ -87,6 +104,7 @@ void fauxmoESP::_handleUDP() {
     }
 
 }
+#endif
 
 
 // -----------------------------------------------------------------------------
@@ -157,12 +175,20 @@ String fauxmoESP::_makeMD5(String text)
 {
   unsigned char bbuf[16];
   String hash = "";
+#if defined(LIBRETINY)
+  // LibreTiny has no MD5Builder, the MD5 functions of the core do the same
+  md5_context_t ctx;
+  MD5Init(&ctx);
+  MD5Update(&ctx, reinterpret_cast<const unsigned char*>(text.c_str()), text.length());
+  MD5Final(bbuf, &ctx);
+#else
   MD5Builder md5;
   md5.begin();
   md5.add(text);
   md5.calculate();
   
   md5.getBytes(bbuf);
+#endif
   for (uint8_t i = 0; i < 16; i++)
   {
     hash += _byte2hex(bbuf[i]);
@@ -647,7 +673,9 @@ void fauxmoESP::enable(bool enable) {
 		}
 
 		// UDP setup
-		#ifdef ESP32
+		#if defined(LIBRETINY)
+            _udp.begin(FAUXMO_UDP_MULTICAST_IP, FAUXMO_UDP_MULTICAST_PORT);
+		#elif defined(ESP32)
             _udp.beginMulticast(FAUXMO_UDP_MULTICAST_IP, FAUXMO_UDP_MULTICAST_PORT);
         #else
             _udp.beginMulticast(WiFi.localIP(), FAUXMO_UDP_MULTICAST_IP, FAUXMO_UDP_MULTICAST_PORT);
@@ -655,5 +683,11 @@ void fauxmoESP::enable(bool enable) {
         DEBUG_MSG_FAUXMO("[FAUXMO] UDP server started\n");
 
 	}
+	#if defined(LIBRETINY)
+	else {
+		// disabled (or paused while Matter commissions): the pcb and the IGMP membership go
+		_udp.stop();
+	}
+	#endif
 
 }
