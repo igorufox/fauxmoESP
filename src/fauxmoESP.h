@@ -30,9 +30,7 @@ THE SOFTWARE.
 
 #define FAUXMO_UDP_MULTICAST_IP     IPAddress(239,255,255,250)
 #define FAUXMO_UDP_MULTICAST_PORT   1900
-#define FAUXMO_TCP_MAX_CLIENTS      10
 #define FAUXMO_TCP_PORT             1901
-#define FAUXMO_RX_TIMEOUT           3
 #define FAUXMO_DEVICE_UNIQUE_ID_LENGTH  27
 
 //#define DEBUG_FAUXMO                Serial
@@ -56,14 +54,12 @@ THE SOFTWARE.
 
 #include <Arduino.h>
 
+// No TCP of its own: the application's web server takes the requests and hands them to process(), the answer comes
+// back through the reply
 #if defined(ESP8266)
     #include <ESP8266WiFi.h>
-    #include <ESPAsyncTCP.h>
-#elif defined(ESP32) || defined(LIBRETINY)
+#elif defined(ESP32) || defined(LIBRETINY) || defined(ARDUINO_RASPBERRY_PI_PICO_W)
     #include <WiFi.h>
-    #include <AsyncTCP.h>
-#elif defined(ARDUINO_RASPBERRY_PI_PICO_W)
-    #include <AsyncTCP_RP2040W.h>
 #else
 	#error Platform not supported
 #endif
@@ -84,6 +80,8 @@ THE SOFTWARE.
 
 typedef std::function<void(unsigned char, const char *, bool, unsigned char)> TSetStateCallback;
 typedef std::function<void(unsigned char, const char *, bool, unsigned char, byte *)> TSetStateWithColorCallback;
+// the answer to a request of process(): the status ("200 OK"), the body, its type
+typedef std::function<void(const char * code, const char * body, const char * mime)> TReplyCallback;
 
 typedef struct {
     char * name;
@@ -113,17 +111,16 @@ class fauxmoESP {
         bool setState(const char * device_name, bool state, unsigned char value);
         bool setState(unsigned char id, bool state, unsigned char value, byte* rgb);
         bool setState(const char * device_name, bool state, unsigned char value, byte* rgb);
-        bool process(AsyncClient *client, bool isGet, String url, String body);
+        // a request of the application's web server: true when it is fauxmo's, then `reply` has the answer
+        bool process(bool isGet, String url, String body, TReplyCallback reply);
         void enable(bool enable);
-        void createServer(bool internal) { _internal = internal; }
+        // the port of the application's web server, announced in the SSDP replies and the description
         void setPort(unsigned long tcp_port) { _tcp_port = tcp_port; }
         void handle();
 
     private:
 
-        AsyncServer * _server;
         bool _enabled = false;
-        bool _internal = true;
         unsigned int _tcp_port = FAUXMO_TCP_PORT;
         std::vector<fauxmoesp_device_t> _devices;
 		#ifdef ESP8266
@@ -134,7 +131,6 @@ class fauxmoESP {
 #else
         WiFiUDP _udp;
 #endif
-        AsyncClient * _tcpClients[FAUXMO_TCP_MAX_CLIENTS];
         TSetStateCallback _setStateCallback = NULL;
         TSetStateWithColorCallback _setStateWithColorCallback = NULL;
 
@@ -148,13 +144,11 @@ class fauxmoESP {
         void _sendUDPResponse();
 #endif
 
-        void _onTCPClient(AsyncClient *client);
-        bool _onTCPData(AsyncClient *client, void *data, size_t len);
-        bool _onTCPRequest(AsyncClient *client, bool isGet, String url, String body);
-        bool _onTCPDescription(AsyncClient *client, String url, String body);
-        bool _onTCPList(AsyncClient *client, String url, String body);
-        bool _onTCPControl(AsyncClient *client, String url, String body);
-        void _sendTCPResponse(AsyncClient *client, const char * code, char * body, const char * mime);
+        bool _onTCPRequest(TReplyCallback& reply, bool isGet, String url, String body);
+        bool _onTCPDescription(TReplyCallback& reply, String url, String body);
+        bool _onTCPList(TReplyCallback& reply, String url, String body);
+        bool _onTCPControl(TReplyCallback& reply, String url, String body);
+        void _sendTCPResponse(TReplyCallback& reply, const char * code, char * body, const char * mime);
 
         String _byte2hex(uint8_t zahl);
         String _makeMD5(String text);
