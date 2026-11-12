@@ -1,6 +1,6 @@
 {
   "name": "FauxmoESP",
-  "description": "fauxmoESP 3.4.1 (Amazon Alexa as a Belkin WeMo / Hue bridge) with LibreTiny (BK72xx) support: the ESP32 code paths with WiFi.h / AsyncTCP.h, the MD5 functions of the LibreTiny core instead of MD5Builder, and the SSDP listener on a lwIP udp_pcb instead of WiFiUDP (about 3.5 KiB less heap, closed while paused). ESP8266 / ESP32 code unchanged. The application provides ESPAsyncTCP / AsyncTCP.",
+  "description": "fauxmoESP 3.4.1 (Amazon Alexa as a Belkin WeMo / Hue bridge) for ESPurna: LibreTiny (BK72xx) support (the ESP32 code paths with WiFi.h, the MD5 functions of the LibreTiny core instead of MD5Builder, the SSDP listener on a lwIP udp_pcb instead of WiFiUDP) and no TCP of its own: the application's web server hands the requests to process(isGet, url, body, reply), the answer comes back through the reply (no ESPAsyncTCP / AsyncTCP).",
   "keywords": "alexa,amazon,echo,fauxmo,wemo",
   "authors": {
     "name": "Paul Vint",
@@ -12,7 +12,7 @@
     "type": "git",
     "url": "https://github.com/igorufox/fauxmoESP"
   },
-  "version": "3.4.1-espurna.1",
+  "version": "3.4.1-espurna.2",
   "license": "MIT",
   "frameworks": "arduino",
   "platforms": [
