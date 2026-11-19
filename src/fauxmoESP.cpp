@@ -26,23 +26,19 @@ THE SOFTWARE.
 
 */
 
-#include <Arduino.h>
 #include "fauxmoESP.h"
 
 // -----------------------------------------------------------------------------
 // UDP
 // -----------------------------------------------------------------------------
 
-#if defined(LIBRETINY)
 void fauxmoESP::_sendUDPResponse(const FauxmoUdp::Peer& peer) {
-#else
-void fauxmoESP::_sendUDPResponse() {
-#endif
 
 	DEBUG_MSG_FAUXMO("[FAUXMO] Responding to M-SEARCH request\n");
 
-	IPAddress ip = WiFi.localIP();
-    String mac = WiFi.macAddress();
+	uint8_t ip[4];
+	fauxmo::localIP(ip);
+    String mac = fauxmo::macAddress();
     mac.replace(":", "");
     mac.toLowerCase();
 
@@ -55,25 +51,10 @@ void fauxmoESP::_sendUDPResponse() {
         mac.c_str(), mac.c_str()
     );
 
-	#if DEBUG_FAUXMO_VERBOSE_UDP && !defined(LIBRETINY)
-    	DEBUG_MSG_FAUXMO("[FAUXMO] UDP response sent to %s:%d\n%s", _udp.remoteIP().toString().c_str(), _udp.remotePort(), response);
-	#endif
-
-	#if defined(LIBRETINY)
-	    _udp.send(peer, response, strlen(response));
-	#else
-    _udp.beginPacket(_udp.remoteIP(), _udp.remotePort());
-	#if defined(ESP32)
-	    _udp.printf(response);
-	#else
-	    _udp.write(response);
-	#endif
-    _udp.endPacket();
-	#endif
+	_udp.send(peer, response, strlen(response));
 
 }
 
-#if defined(LIBRETINY)
 // the M-SEARCH match is done in the lwIP thread (fauxmoUdp.cpp), only the replies are left
 void fauxmoESP::_handleUDP() {
     FauxmoUdp::Peer peer;
@@ -81,30 +62,6 @@ void fauxmoESP::_handleUDP() {
         _sendUDPResponse(peer);
     }
 }
-#else
-void fauxmoESP::_handleUDP() {
-
-	int len = _udp.parsePacket();
-    if (len > 0) {
-
-		unsigned char data[len+1];
-        _udp.read(data, len);
-        data[len] = 0;
-
-		#if DEBUG_FAUXMO_VERBOSE_UDP
-			DEBUG_MSG_FAUXMO("[FAUXMO] UDP packet received\n%s", (const char *) data);
-		#endif
-
-        String request = (const char *) data;
-        if (request.indexOf("M-SEARCH") >= 0) {
-            if ((request.indexOf("ssdp:discover") > 0) || (request.indexOf("upnp:rootdevice") > 0) || (request.indexOf("device:basic:1") > 0)) {
-                _sendUDPResponse();
-            }
-        }
-    }
-
-}
-#endif
 
 
 // -----------------------------------------------------------------------------
@@ -167,22 +124,9 @@ String fauxmoESP::_byte2hex(uint8_t zahl)
 
 String fauxmoESP::_makeMD5(String text)
 {
-  unsigned char bbuf[16];
+  uint8_t bbuf[16];
   String hash = "";
-#if defined(LIBRETINY)
-  // LibreTiny has no MD5Builder, the MD5 functions of the core do the same
-  md5_context_t ctx;
-  MD5Init(&ctx);
-  MD5Update(&ctx, reinterpret_cast<const unsigned char*>(text.c_str()), text.length());
-  MD5Final(bbuf, &ctx);
-#else
-  MD5Builder md5;
-  md5.begin();
-  md5.add(text);
-  md5.calculate();
-  
-  md5.getBytes(bbuf);
-#endif
+  fauxmo::md5(text, bbuf);
   for (uint8_t i = 0; i < 16; i++)
   {
     hash += _byte2hex(bbuf[i]);
@@ -198,8 +142,9 @@ bool fauxmoESP::_onTCPDescription(TReplyCallback& reply, String url, String body
 
 	DEBUG_MSG_FAUXMO("[FAUXMO] Handling /description.xml request\n");
 
-	IPAddress ip = WiFi.localIP();
-    String mac = WiFi.macAddress();
+	uint8_t ip[4];
+	fauxmo::localIP(ip);
+    String mac = fauxmo::macAddress();
     mac.replace(":", "");
     mac.toLowerCase();
 
@@ -439,7 +384,7 @@ unsigned char fauxmoESP::addDevice(const char * device_name) {
 	  device.value = 0;
 
     // create the uniqueid
-    String mac = WiFi.macAddress();
+    String mac = fauxmo::macAddress();
 
     snprintf(device.uniqueid, FAUXMO_DEVICE_UNIQUE_ID_LENGTH, "%02X:%s:%s", device_id, mac.c_str(), "00:00");
 
@@ -554,21 +499,13 @@ void fauxmoESP::enable(bool enable) {
     if (_enabled) {
 
 		// UDP setup
-		#if defined(LIBRETINY)
-            _udp.begin(FAUXMO_UDP_MULTICAST_IP, FAUXMO_UDP_MULTICAST_PORT);
-		#elif defined(ESP32)
-            _udp.beginMulticast(FAUXMO_UDP_MULTICAST_IP, FAUXMO_UDP_MULTICAST_PORT);
-        #else
-            _udp.beginMulticast(WiFi.localIP(), FAUXMO_UDP_MULTICAST_IP, FAUXMO_UDP_MULTICAST_PORT);
-        #endif
+        _udp.begin(FAUXMO_UDP_MULTICAST_IP, FAUXMO_UDP_MULTICAST_PORT);
         DEBUG_MSG_FAUXMO("[FAUXMO] UDP server started\n");
 
 	}
-	#if defined(LIBRETINY)
 	else {
 		// disabled (or paused while Matter commissions): the pcb and the IGMP membership go
 		_udp.stop();
 	}
-	#endif
 
 }

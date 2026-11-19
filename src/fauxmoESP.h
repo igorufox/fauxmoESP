@@ -28,7 +28,7 @@ THE SOFTWARE.
 
 #pragma once
 
-#define FAUXMO_UDP_MULTICAST_IP     IPAddress(239,255,255,250)
+#define FAUXMO_UDP_MULTICAST_IP     239,255,255,250
 #define FAUXMO_UDP_MULTICAST_PORT   1900
 #define FAUXMO_TCP_PORT             1901
 #define FAUXMO_DEVICE_UNIQUE_ID_LENGTH  27
@@ -52,30 +52,15 @@ THE SOFTWARE.
 #define DEBUG_FAUXMO_VERBOSE_UDP    false
 #endif
 
-#include <Arduino.h>
+// ESPurna (the `rtos` branch of the fork): <espurna_base.h> instead of <Arduino.h> (fauxmoEspurna.h), the SSDP
+// listener on lwIP (fauxmoUdp.h) on every chip
+#include "fauxmoEspurna.h"
 
 // No TCP of its own: the application's web server takes the requests and hands them to process(), the answer comes
 // back through the reply
-#if defined(ESP8266)
-    #include <ESP8266WiFi.h>
-#elif defined(ESP32) || defined(LIBRETINY) || defined(ARDUINO_RASPBERRY_PI_PICO_W)
-    #include <WiFi.h>
-#else
-	#error Platform not supported
-#endif
-
-#if defined(LIBRETINY)
-    #include "fauxmoUdp.h"
-#else
-    #include <WiFiUdp.h>
-#endif
+#include "fauxmoUdp.h"
 #include <functional>
 #include <vector>
-#if defined(LIBRETINY)
-    #include <MD5.h>
-#else
-    #include <MD5Builder.h>
-#endif
 #include "templates.h"
 
 typedef std::function<void(unsigned char, const char *, bool, unsigned char)> TSetStateCallback;
@@ -123,26 +108,14 @@ class fauxmoESP {
         bool _enabled = false;
         unsigned int _tcp_port = FAUXMO_TCP_PORT;
         std::vector<fauxmoesp_device_t> _devices;
-		#ifdef ESP8266
-        WiFiEventHandler _handler;
-		#endif
-#if defined(LIBRETINY)
         FauxmoUdp _udp;
-#else
-        WiFiUDP _udp;
-#endif
         TSetStateCallback _setStateCallback = NULL;
         TSetStateWithColorCallback _setStateWithColorCallback = NULL;
 
         String _deviceJson(unsigned char id, bool all); 	// all = true means we are listing all devices so use full description template
 
         void _handleUDP();
-        void _onUDPData(const IPAddress remoteIP, unsigned int remotePort, void *data, size_t len);
-#if defined(LIBRETINY)
         void _sendUDPResponse(const FauxmoUdp::Peer& peer);
-#else
-        void _sendUDPResponse();
-#endif
 
         bool _onTCPRequest(TReplyCallback& reply, bool isGet, String url, String body);
         bool _onTCPDescription(TReplyCallback& reply, String url, String body);

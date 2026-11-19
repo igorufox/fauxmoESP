@@ -1,5 +1,3 @@
-#if defined(LIBRETINY)
-
 #include "fauxmoUdp.h"
 
 #include <lwip/igmp.h>
@@ -85,14 +83,14 @@ bool contains(struct pbuf* p, const char* text) {
 
 } // namespace
 
-bool FauxmoUdp::begin(const IPAddress& group, uint16_t port) {
+bool FauxmoUdp::begin(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint16_t port) {
     if (_pcb) {
         return true;
     }
 
     _head = 0;
     _tail = 0;
-    IP4_ADDR(&_group, group[0], group[1], group[2], group[3]);
+    IP4_ADDR(&_group, a, b, c, d);
 
     Call call {};
     call.self = this;
@@ -151,5 +149,3 @@ void FauxmoUdp::_recv(void* arg, struct udp_pcb*, struct pbuf* p, const ip_addr_
 
     pbuf_free(p);
 }
-
-#endif
