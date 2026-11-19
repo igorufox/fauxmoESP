@@ -1,0 +1,46 @@
+name: Build
+
+# The library alone, as a firmware would take it: its sources against the platform header of espurna-base (the tag
+# below) and lwIP 2.2.0 (the SSDP listener, fauxmoUdp), with lwIP's unix port. A compile check: the calls of
+# espurna_base.h are implemented by the firmware that uses the library, nothing is linked
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  ESPURNA_BASE: "1.0.0"
+  LWIP: "STABLE-2_2_0_RELEASE"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: espurna-base
+        uses: actions/checkout@v4
+        with:
+          repository: igorufox/espurna-base
+          ref: ${{ env.ESPURNA_BASE }}
+          path: deps/espurna-base
+
+      - name: lwIP
+        uses: actions/checkout@v4
+        with:
+          repository: lwip-tcpip/lwip
+          ref: ${{ env.LWIP }}
+          path: deps/lwip
+
+      - name: Compile
+        run: |
+          set -e
+          g++ --version | head -1
+          FLAGS="-std=gnu++17 -Wall -Isrc -Ideps/espurna-base/src -I.github/ci \
+            -Ideps/lwip/src/include -Ideps/lwip/contrib/ports/unix/port/include"
+          mkdir -p out
+          for f in src/*.cpp; do
+            echo "== $f"
+            g++ $FLAGS -c "$f" -o "out/$(basename "$f").o"
+          done
